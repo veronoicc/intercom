@@ -75,10 +75,10 @@ impl<T: DeserializeOwned> Stream for Subscriber<T> {
 }
 
 impl<E: Encoder> Intercom<E> {
-    pub async fn subscribe<S: ToSubject>(
+    pub async fn subscribe<S: ToSubject, T: DeserializeOwned>(
         &self,
         subject: S,
-    ) -> Result<Subscriber<()>, async_nats::Error> {
+    ) -> Result<Subscriber<T>, async_nats::Error> {
         let inner = self.inner.subscribe(subject).await?;
         Ok(Subscriber {
             inner,
@@ -88,11 +88,11 @@ impl<E: Encoder> Intercom<E> {
         })
     }
 
-    pub async fn queue_subscribe<S: ToSubject, Q: ToString>(
+    pub async fn queue_subscribe<S: ToSubject, Q: ToString, T: DeserializeOwned>(
         &self,
         subject: S,
         group: Q,
-    ) -> Result<Subscriber<()>, async_nats::Error> {
+    ) -> Result<Subscriber<T>, async_nats::Error> {
         let inner = self
             .inner
             .queue_subscribe(subject, group.to_string())

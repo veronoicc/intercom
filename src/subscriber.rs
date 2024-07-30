@@ -25,6 +25,7 @@ pub enum SubscriberError {
 }
 
 pin_project! {
+    #[derive(Debug)]
     pub struct Subscriber<T: DeserializeOwned> {
         #[pin]
         inner: nats::Subscriber,

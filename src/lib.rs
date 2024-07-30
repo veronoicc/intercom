@@ -54,6 +54,7 @@ pub struct Message<T> {
     pub length: usize,
 }
 
+#[derive(Clone, Debug)]
 pub struct Intercom<E> {
     inner: nats::Client,
     encoding: Encoding,

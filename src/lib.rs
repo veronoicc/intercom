@@ -11,6 +11,7 @@ use nats::{subject::ToSubject, ToServerAddrs};
 use serde::{Deserialize, Serialize};
 
 pub mod subscriber;
+pub use subscriber::Subscriber;
 
 pub trait Encoder {}
 

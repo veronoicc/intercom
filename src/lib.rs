@@ -19,11 +19,15 @@ pub trait Encoder {}
 pub struct JsonEncoder;
 #[cfg(feature = "json")]
 impl Encoder for JsonEncoder {}
+#[cfg(feature = "json")]
+pub type JsonIntercom = Intercom<JsonEncoder>;
 
 #[cfg(feature = "msgpack")]
 pub struct MessagePackEncoder;
 #[cfg(feature = "msgpack")]
 impl Encoder for MessagePackEncoder {}
+#[cfg(feature = "msgpack")]
+pub type MessagePackIntercom = Intercom<MessagePackEncoder>;
 
 pub struct JetStream;
 

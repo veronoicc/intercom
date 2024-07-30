@@ -8,7 +8,7 @@ use std::marker::PhantomData;
 
 pub use async_nats as nats;
 use nats::{subject::ToSubject, ToServerAddrs};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 pub mod subscriber;
 pub use subscriber::Subscriber;
@@ -122,5 +122,39 @@ impl<E: Encoder> Intercom<E> {
         self.inner.publish(subject, payload.into()).await?;
 
         Ok(())
+    }
+
+    pub async fn request<S: ToSubject, TI: Serialize, TO: DeserializeOwned>(
+        &self,
+        subject: S,
+        payload: TI,
+    ) -> Result<Message<TO>, async_nats::Error> {
+        let payload = match self.encoding {
+            Encoding::NoEncoding => unreachable!(),
+            #[cfg(feature = "json")]
+            Encoding::Json => serde_json::to_vec(&payload)?,
+            #[cfg(feature = "msgpack")]
+            Encoding::MessagePack => rmp_serde::to_vec(&payload)?,
+        };
+
+        let msg = self.inner.request(subject, payload.into()).await?;
+
+        let payload = match self.encoding {
+            Encoding::NoEncoding => unreachable!(),
+            #[cfg(feature = "json")]
+            Encoding::Json => serde_json::from_slice(&msg.payload)?,
+            #[cfg(feature = "msgpack")]
+            Encoding::MessagePack => rmp_serde::from_slice(&msg.payload)?,
+        };
+
+        Ok(Message {
+            subject: msg.subject,
+            reply: msg.reply,
+            payload,
+            headers: msg.headers,
+            status: msg.status,
+            description: msg.description,
+            length: msg.length,
+        })
     }
 }

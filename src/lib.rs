@@ -15,6 +15,7 @@ pub use subscriber::Subscriber;
 
 pub trait Encoder {}
 
+#[cfg_attr(feature = "json", derive(Debug, Clone, Copy))]
 #[cfg(feature = "json")]
 pub struct JsonEncoder;
 #[cfg(feature = "json")]
@@ -22,6 +23,7 @@ impl Encoder for JsonEncoder {}
 #[cfg(feature = "json")]
 pub type JsonIntercom = Intercom<JsonEncoder>;
 
+#[cfg_attr(feature = "json", derive(Debug, Clone, Copy))]
 #[cfg(feature = "msgpack")]
 pub struct MessagePackEncoder;
 #[cfg(feature = "msgpack")]

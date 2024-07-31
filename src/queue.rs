@@ -4,19 +4,19 @@ use std::{
     task::{Context, Poll},
 };
 
-use async_nats::subject::ToSubject;
+use async_nats::jetstream::{
+    consumer::pull::{Config as ConsumerConfig, Stream as Source},
+    stream::{Config as StreamConfig, RetentionPolicy},
+};
 use futures::Stream;
 use pin_project_lite::pin_project;
 use serde::de::DeserializeOwned;
 use thiserror::Error;
 
-use crate::{
-    nats::{self, Subscriber as Source},
-    Encoding, HasEncoding, Intercom, Message,
-};
+use crate::{nats, Encoding, HasEncoding, Intercom, Message};
 
 #[derive(Debug, Error)]
-pub enum SubscriberError {
+pub enum QueueError {
     #[error("NATS error: {0}")]
     Nats(nats::Error),
     #[cfg(feature = "json")]
@@ -28,7 +28,7 @@ pub enum SubscriberError {
 }
 
 pin_project! {
-    pub struct Subscriber<T: DeserializeOwned> {
+    pub struct Queue<T: DeserializeOwned> {
         #[pin]
         inner: Source,
         encoding: Encoding,
@@ -37,8 +37,8 @@ pin_project! {
     }
 }
 
-impl<T: DeserializeOwned> Stream for Subscriber<T> {
-    type Item = Result<Message<T>, SubscriberError>;
+impl<T: DeserializeOwned> Stream for Queue<T> {
+    type Item = Result<Message<T>, QueueError>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
@@ -49,14 +49,15 @@ impl<T: DeserializeOwned> Stream for Subscriber<T> {
             }
 
             match Pin::new(&mut this.inner).poll_next(cx) {
-                Poll::Ready(Some(msg)) => {
+                Poll::Ready(Some(Ok(msg))) => {
+                    let msg = msg.message;
                     let payload = match this.encoding {
                         #[cfg(feature = "json")]
                         Encoding::Json => serde_json::from_slice(&msg.payload)
-                            .map_err(|err| SubscriberError::Json(err)),
+                            .map_err(|err| QueueError::Json(err)),
                         #[cfg(feature = "msgpack")]
                         Encoding::MessagePack => rmp_serde::from_slice(&msg.payload)
-                            .map_err(|err| SubscriberError::MessagePack(err)),
+                            .map_err(|err| QueueError::MessagePack(err)),
                     };
 
                     return Poll::Ready(Some(payload.map(|payload| Message {
@@ -69,6 +70,9 @@ impl<T: DeserializeOwned> Stream for Subscriber<T> {
                         length: msg.length,
                     })));
                 }
+                Poll::Ready(Some(Err(err))) => {
+                    return Poll::Ready(Some(Err(QueueError::Nats(Box::new(err)))))
+                }
                 Poll::Ready(None) => return Poll::Ready(None),
                 Poll::Pending => {}
             }
@@ -77,30 +81,23 @@ impl<T: DeserializeOwned> Stream for Subscriber<T> {
 }
 
 impl Intercom<HasEncoding> {
-    pub async fn subscribe<S: ToSubject, T: DeserializeOwned>(
+    pub async fn queue<S: ToString, T: DeserializeOwned>(
         &self,
         subject: S,
-    ) -> Result<Subscriber<T>, async_nats::Error> {
-        let inner = self.nats.subscribe(subject).await?;
-        Ok(Subscriber {
-            inner,
-            encoding: self.encoding.unwrap(),
-            has_closed: false,
-            _phantom: PhantomData,
-        })
-    }
-
-    pub async fn lb_subscribe<S: ToSubject, Q: ToString, T: DeserializeOwned>(
-        &self,
-        subject: S,
-        group: Q,
-    ) -> Result<Subscriber<T>, async_nats::Error> {
+    ) -> Result<Queue<T>, async_nats::Error> {
         let inner = self
-            .nats
-            .queue_subscribe(subject, group.to_string())
+            .jetstream
+            .get_or_create_stream(StreamConfig {
+                subjects: vec![subject.to_string()],
+                retention: RetentionPolicy::WorkQueue,
+                ..Default::default()
+            })
             .await?;
-        Ok(Subscriber {
-            inner,
+
+        let consumer = inner.create_consumer(ConsumerConfig::default()).await?;
+
+        Ok(Queue {
+            inner: consumer.messages().await?,
             encoding: self.encoding.unwrap(),
             has_closed: false,
             _phantom: PhantomData,

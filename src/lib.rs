@@ -33,7 +33,7 @@ pub struct Message<T> {
 
     pub length: usize,
 }
-
+#[derive(Clone, Copy, Debug)]
 pub struct HasEncoding;
 
 pub type IntercomBuilder = Intercom<()>;

@@ -11,6 +11,7 @@ use nats::{subject::ToSubject, ToServerAddrs};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 pub mod queue;
+pub use queue::Queue;
 pub mod subscriber;
 pub use subscriber::Subscriber;
 

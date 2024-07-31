@@ -93,6 +93,7 @@ impl Intercom<HasEncoding> {
                 name: subject.replace(".", "_"),
                 subjects: vec![subject.to_string()],
                 retention: RetentionPolicy::WorkQueue,
+                no_ack: true,
                 ..Default::default()
             })
             .await?;

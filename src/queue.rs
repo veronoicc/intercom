@@ -90,7 +90,7 @@ impl Intercom<HasEncoding> {
         let inner = self
             .jetstream
             .get_or_create_stream(StreamConfig {
-                name: subject.replace(".", "|"),
+                name: subject.replace(".", "_"),
                 subjects: vec![subject.to_string()],
                 retention: RetentionPolicy::WorkQueue,
                 ..Default::default()

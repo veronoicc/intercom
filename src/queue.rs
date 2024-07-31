@@ -85,9 +85,12 @@ impl Intercom<HasEncoding> {
         &self,
         subject: S,
     ) -> Result<Queue<T>, async_nats::Error> {
+        let subject = subject.to_string();
+
         let inner = self
             .jetstream
             .get_or_create_stream(StreamConfig {
+                name: subject.replace(".", "|"),
                 subjects: vec![subject.to_string()],
                 retention: RetentionPolicy::WorkQueue,
                 ..Default::default()

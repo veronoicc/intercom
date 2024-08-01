@@ -7,6 +7,7 @@ compile_error!("Either the json or msgpack feature must be enabled");
 use std::marker::PhantomData;
 
 pub use async_nats as nats;
+use async_nats::client::FlushError;
 use nats::{subject::ToSubject, ToServerAddrs};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -103,6 +104,10 @@ impl Intercom<()> {
 }
 
 impl Intercom<HasEncoding> {
+    pub async fn flush(&self) -> Result<(), FlushError> {
+        self.nats.flush().await
+    }
+
     pub async fn publish<S: ToSubject, T: Serialize>(
         &self,
         subject: S,
